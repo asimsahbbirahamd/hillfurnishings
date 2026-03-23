@@ -62,7 +62,6 @@ router.get("/shopify/auth", (_req: Request, res: Response) => {
   authUrl.searchParams.set("scope", SCOPES);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("state", nonce);
-  authUrl.searchParams.set("grant_options[]", "per-user");
 
   res.redirect(authUrl.toString());
 });
