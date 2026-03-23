@@ -55,9 +55,18 @@ function normalisedServiceCode(courierType: string, serviceLevel: string): strin
   return `SHIPPIT_${courierType.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_${serviceLevel.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
 }
 
+function cleanCourierName(courierType: string): string {
+  return courierType
+    .replace(/AuNz$/i, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalisedServiceName(courierType: string, serviceLevel: string): string {
   const level = serviceLevel.charAt(0).toUpperCase() + serviceLevel.slice(1).toLowerCase();
-  return `${courierType} – ${level}`;
+  const courier = cleanCourierName(courierType);
+  return `${courier} – ${level}`;
 }
 
 router.post("/shipping/rates", async (req: Request, res: Response) => {
@@ -165,11 +174,12 @@ router.post("/shipping/rates", async (req: Request, res: Response) => {
         if (!quote.price || quote.price <= 0) continue;
         const serviceLevel = quote.service_level ?? carrierServiceLevel ?? "standard";
         const priceCents = Math.round(quote.price * 100).toString();
+        const transitNote = quote.estimated_transit_time ? `Est. ${quote.estimated_transit_time}` : "";
         rates.push({
           service_name: normalisedServiceName(carrier.courier_type, serviceLevel),
           service_code: normalisedServiceCode(carrier.courier_type, serviceLevel),
           total_price: priceCents,
-          description: quote.estimated_transit_time ? `Est. ${quote.estimated_transit_time}` : `Shipped via ${carrier.courier_type}`,
+          description: transitNote ? `${transitNote} · Calculated by Hill Furnishings` : "Calculated by Hill Furnishings",
           currency: currency ?? "AUD",
         });
       }
