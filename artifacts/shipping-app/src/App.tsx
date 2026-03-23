@@ -1,114 +1,128 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-const API_BASE = "/api";
-const CORRECT_PIN = "987654321";
+const API = "/api";
+const PIN = "987654321";
 const SESSION_KEY = "hf_auth";
 
 function usePinAuth() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(SESSION_KEY) === "1");
-  const unlock = (pin: string) => {
-    if (pin === CORRECT_PIN) {
-      sessionStorage.setItem(SESSION_KEY, "1");
-      setAuthed(true);
-      return true;
-    }
-    return false;
-  };
-  const lock = () => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setAuthed(false);
-  };
+  const unlock = (p: string) => { if (p === PIN) { sessionStorage.setItem(SESSION_KEY, "1"); setAuthed(true); return true; } return false; };
+  const lock = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); };
   return { authed, unlock, lock };
 }
 
-function PinGate({ onUnlock }: { onUnlock: (pin: string) => boolean }) {
+/* ── PIN Gate ─────────────────────────────────────────────── */
+function PinGate({ onUnlock }: { onUnlock: (p: string) => boolean }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => ref.current?.focus(), []);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = onUnlock(pin);
-    if (!ok) {
-      setError(true);
-      setShake(true);
-      setPin("");
-      setTimeout(() => setShake(false), 600);
-      setTimeout(() => setError(false), 2000);
+    if (!onUnlock(pin)) {
+      setError(true); setShake(true); setPin("");
+      setTimeout(() => setShake(false), 500);
+      setTimeout(() => setError(false), 2500);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f1117]" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div className="w-full max-w-sm px-6">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/5 border border-white/10 mb-6">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <rect width="32" height="32" rx="8" fill="#2563EB"/>
-              <path d="M8 10h10a6 6 0 0 1 0 12H8V10z" fill="white" opacity="0.9"/>
-              <path d="M8 16h8" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif" }} className="min-h-screen bg-[#0a0b0f] flex items-center justify-center px-4">
+      <div className="w-full max-w-[340px]">
+        <div className="flex flex-col items-center mb-10">
+          <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mb-5 shadow-[0_0_40px_rgba(37,99,235,0.3)]">
+            <svg width="28" height="20" viewBox="0 0 28 20" fill="none">
+              <path d="M0 2C0 .9.9 0 2 0h14a8 8 0 0 1 0 16H2a2 2 0 0 1-2-2V2z" fill="white"/>
+              <circle cx="22" cy="8" r="6" fill="white" fillOpacity=".15" stroke="white" strokeWidth="1.5"/>
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold text-white mb-1">Hill Furnishings</h1>
-          <p className="text-sm text-white/40">Shipping Rate Control Panel</p>
+          <h1 className="text-[22px] font-semibold text-white tracking-tight">Hill Furnishings</h1>
+          <p className="text-sm text-white/35 mt-1">Shipping Rate Control Panel</p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className={`mb-4 transition-transform duration-100 ${shake ? "animate-[shake_0.5s_ease-in-out]" : ""}`}>
-            <label className="block text-xs font-medium text-white/40 uppercase tracking-widest mb-2 text-center">Enter PIN to continue</label>
+        <form onSubmit={submit}>
+          <p className="text-[11px] font-medium text-white/30 uppercase tracking-[.15em] text-center mb-3">Enter PIN</p>
+          <div className={shake ? "animate-[shake_.45s_ease-in-out]" : ""}>
             <input
-              ref={inputRef}
+              ref={ref}
               type="password"
               inputMode="numeric"
               value={pin}
               onChange={e => setPin(e.target.value.replace(/\D/g, ""))}
               placeholder="••••••••••"
               maxLength={12}
-              className={`w-full text-center text-xl tracking-[0.5em] bg-white/5 border rounded-xl px-4 py-4 text-white placeholder-white/20 outline-none transition-all
-                ${error ? "border-red-500/60 bg-red-500/5" : "border-white/10 focus:border-blue-500/60 focus:bg-white/8"}`}
+              className={`w-full text-center text-2xl tracking-[.6em] rounded-2xl px-4 py-4 text-white placeholder-white/15 outline-none border transition-all duration-200 bg-white/4
+                ${error ? "border-red-500/50 bg-red-500/6" : "border-white/8 focus:border-blue-500/50 focus:bg-white/6"}`}
             />
-            {error && <p className="text-red-400 text-xs text-center mt-2">Incorrect PIN. Try again.</p>}
+            <div className={`overflow-hidden transition-all duration-300 ${error ? "max-h-10 mt-2" : "max-h-0"}`}>
+              <p className="text-red-400/90 text-xs text-center">Incorrect PIN — try again</p>
+            </div>
           </div>
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium rounded-xl py-3.5 text-sm transition-colors"
-          >
-            Unlock Dashboard
+          <button type="submit" className="mt-4 w-full bg-blue-600 hover:bg-blue-500 active:scale-[.98] text-white font-medium rounded-xl py-3.5 text-sm transition-all duration-150">
+            Unlock
           </button>
         </form>
       </div>
-
-      <style>{`
-        @keyframes shake {
-          0%,100% { transform: translateX(0); }
-          20% { transform: translateX(-8px); }
-          40% { transform: translateX(8px); }
-          60% { transform: translateX(-5px); }
-          80% { transform: translateX(5px); }
-        }
-      `}</style>
+      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}`}</style>
     </div>
   );
 }
 
+/* ── Types ────────────────────────────────────────────────── */
 interface Rate { service_name: string; total_price: string; description?: string; }
+interface CarrierService { id: number; name: string; active: boolean; callback_url?: string; }
+interface CarrierStatus { found: boolean; service: CarrierService | null; error?: string; }
 
-function StatusDot({ ok }: { ok: boolean | null }) {
-  if (ok === null) return <span className="w-2 h-2 rounded-full bg-white/20 animate-pulse inline-block" />;
-  return ok
-    ? <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-    : <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />;
+/* ── Micro components ─────────────────────────────────────── */
+function Dot({ state }: { state: "ok" | "warn" | "loading" }) {
+  if (state === "loading") return <span className="w-2 h-2 rounded-full bg-white/20 animate-pulse inline-block" />;
+  if (state === "ok") return <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shadow-[0_0_8px_rgba(52,211,153,.5)]" />;
+  return <span className="w-2 h-2 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_rgba(251,191,36,.4)]" />;
 }
 
+function Banner({ type, message, onDismiss }: { type: "error" | "success" | "info"; message: string; onDismiss?: () => void }) {
+  const styles = {
+    error:   "bg-red-500/8 border-red-500/25 text-red-300",
+    success: "bg-emerald-500/8 border-emerald-500/25 text-emerald-300",
+    info:    "bg-blue-500/8 border-blue-500/25 text-blue-300",
+  };
+  const icons = { error: "✕", success: "✓", info: "i" };
+  return (
+    <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${styles[type]}`}>
+      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 bg-current/10">{icons[type]}</span>
+      <p className="flex-1 leading-relaxed opacity-90 font-mono text-xs whitespace-pre-wrap">{message}</p>
+      {onDismiss && <button onClick={onDismiss} className="text-current/50 hover:text-current/80 flex-shrink-0 text-xs mt-0.5">✕</button>}
+    </div>
+  );
+}
+
+/* ── Toggle Switch ────────────────────────────────────────── */
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative w-12 h-6 rounded-full transition-all duration-300 outline-none flex-shrink-0
+        ${checked ? "bg-emerald-500 shadow-[0_0_16px_rgba(52,211,153,.35)]" : "bg-white/12"}
+        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:opacity-90"}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300 ${checked ? "translate-x-6" : "translate-x-0"}`} />
+    </button>
+  );
+}
+
+/* ── Dashboard ────────────────────────────────────────────── */
 function Dashboard({ onLock }: { onLock: () => void }) {
   const [health, setHealth] = useState<boolean | null>(null);
   const [shippit, setShippit] = useState<{ ok: boolean; detail: string } | null>(null);
   const [shopify, setShopify] = useState<{ connected: boolean; tokenPrefix: string | null } | null>(null);
+  const [carrier, setCarrier] = useState<CarrierStatus | null>(null);
+  const [togglingCarrier, setTogglingCarrier] = useState(false);
+  const [carrierToggleMsg, setCarrierToggleMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
   const [postcode, setPostcode] = useState("2000");
   const [suburb, setSuburb] = useState("Sydney");
@@ -123,272 +137,311 @@ function Dashboard({ onLock }: { onLock: () => void }) {
   const [testError, setTestError] = useState<string | null>(null);
 
   const [registering, setRegistering] = useState(false);
-  const [registerResult, setRegisterResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [registerMsg, setRegisterMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
   const origin = window.location.origin;
 
+  const loadCarrierStatus = useCallback(async () => {
+    try {
+      const r = await fetch(`${API}/shipping/carrier-status`);
+      setCarrier(await r.json());
+    } catch { setCarrier({ found: false, service: null, error: "Could not reach API" }); }
+  }, []);
+
   useEffect(() => {
-    fetch(`${API_BASE}/healthz`).then(r => setHealth(r.ok)).catch(() => setHealth(false));
-    fetch(`${API_BASE}/shipping/test`).then(async r => {
+    fetch(`${API}/healthz`).then(r => setHealth(r.ok)).catch(() => setHealth(false));
+    fetch(`${API}/shipping/test`).then(async r => {
       const j = await r.json();
       setShippit({ ok: j.success, detail: j.success ? `${j.quoteCount} carriers active` : j.error });
     }).catch(() => setShippit({ ok: false, detail: "Unreachable" }));
-    fetch(`${API_BASE}/shopify/token-status`).then(async r => {
-      setShopify(await r.json());
-    }).catch(() => setShopify({ connected: false, tokenPrefix: null }));
-  }, []);
+    fetch(`${API}/shopify/token-status`).then(async r => setShopify(await r.json())).catch(() => setShopify({ connected: false, tokenPrefix: null }));
+    loadCarrierStatus();
+  }, [loadCarrierStatus]);
+
+  async function toggleCarrier(active: boolean) {
+    setTogglingCarrier(true); setCarrierToggleMsg(null);
+    try {
+      const r = await fetch(`${API}/shipping/carrier-set-active`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setCarrierToggleMsg({ type: "success", text: active ? "Carrier service enabled — live rates active at checkout." : "Carrier service disabled — checkout will not show live rates." });
+        await loadCarrierStatus();
+      } else {
+        setCarrierToggleMsg({ type: "error", text: j.error ?? "Toggle failed" });
+      }
+    } catch (e) { setCarrierToggleMsg({ type: "error", text: String(e) }); }
+    finally { setTogglingCarrier(false); }
+  }
 
   async function runTest() {
     setTesting(true); setRates(null); setCalcDetail(null); setTestError(null);
     try {
-      const res = await fetch(`${API_BASE}/shipping/rates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rate: {
-            origin: { country: "AU", postal_code: "4562", province: "QLD", city: "Doonan" },
-            destination: { country: "AU", postal_code: postcode, province: stateName, city: suburb, name: "Test" },
-            items: [{
-              name: "Item", sku: "TEST-001", quantity: 1,
-              grams: Math.round(parseFloat(weightKg) * 1000),
-              price: 50000, vendor: "Hill Furnishings", requires_shipping: true,
-              taxable: true, fulfillment_service: "manual", properties: null,
-              product_id: 1, variant_id: 1,
-            }],
-            currency: "AUD", locale: "en",
-          },
-        }),
+      const res = await fetch(`${API}/shipping/rates`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate: {
+          origin: { country: "AU", postal_code: "4562", province: "QLD", city: "Doonan" },
+          destination: { country: "AU", postal_code: postcode, province: stateName, city: suburb, name: "Test" },
+          items: [{ name: "Item", sku: "TEST-001", quantity: 1, grams: Math.round(parseFloat(weightKg) * 1000),
+            price: 50000, vendor: "Hill Furnishings", requires_shipping: true, taxable: true,
+            fulfillment_service: "manual", properties: null, product_id: 1, variant_id: 1 }],
+          currency: "AUD", locale: "en",
+        }}),
       });
       const j = await res.json();
-      // Shippit cubic weight: L_cm × W_cm × H_cm / 4000 (= volume m³ × 250 kg/m³)
       const vol = (parseFloat(lengthCm) * parseFloat(widthCm) * parseFloat(heightCm)) / 4000;
       const dead = parseFloat(weightKg);
       const charged = Math.max(dead, vol);
       setCalcDetail(`Dead ${dead} kg  ·  Volumetric ${vol.toFixed(2)} kg  →  Charged ${charged.toFixed(2)} kg`);
       setRates(j.rates ?? []);
-    } catch (e) {
-      setTestError(String(e));
-    } finally {
-      setTesting(false);
-    }
+      if (!j.rates?.length) setTestError("Shippit returned no rates for this destination. Try a different postcode.");
+    } catch (e) { setTestError(String(e)); }
+    finally { setTesting(false); }
   }
 
   async function registerCarrier() {
-    setRegistering(true); setRegisterResult(null);
+    setRegistering(true); setRegisterMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/shipping/register`, { method: "POST" });
-      const j = await res.json();
-      setRegisterResult(j.success
-        ? { ok: true, msg: `Registered successfully.\nCallback: ${j.callbackUrl}` }
-        : { ok: false, msg: JSON.stringify(j.details ?? j.error, null, 2) }
-      );
-    } catch (e) {
-      setRegisterResult({ ok: false, msg: String(e) });
-    } finally {
-      setRegistering(false);
-    }
+      const r = await fetch(`${API}/shipping/register`, { method: "POST" });
+      const j = await r.json();
+      if (j.success) {
+        setRegisterMsg({ type: "success", text: `Registered.\nCallback URL: ${j.callbackUrl}` });
+        loadCarrierStatus();
+      } else {
+        setRegisterMsg({ type: "error", text: JSON.stringify(j.details ?? j.error, null, 2) });
+      }
+    } catch (e) { setRegisterMsg({ type: "error", text: String(e) }); }
+    finally { setRegistering(false); }
   }
 
-  const inputCls = "w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/60 focus:bg-white/8 transition-all";
-  const labelCls = "block text-xs font-medium text-white/40 mb-1.5";
+  const inp = "w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors";
+  const lbl = "block text-[11px] font-medium text-white/35 uppercase tracking-wide mb-1.5";
+
+  const carrierActive = carrier?.service?.active ?? false;
+  const carrierFound = carrier?.found ?? false;
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif" }} className="min-h-screen bg-[#0a0b0f] text-white">
 
-      {/* Header */}
-      <header className="border-b border-white/8 bg-white/2 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      {/* ── Header ── */}
+      <header className="border-b border-white/6 bg-white/[.015] sticky top-0 z-20 backdrop-blur-sm">
+        <div className="max-w-[1100px] mx-auto px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-                <path d="M6 10h11a6 6 0 0 1 0 12H6V10z" fill="white" opacity="0.95"/>
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="10" viewBox="0 0 28 20" fill="none">
+                <path d="M0 2C0 .9.9 0 2 0h14a8 8 0 0 1 0 16H2a2 2 0 0 1-2-2V2z" fill="white"/>
               </svg>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-white leading-none">Hill Furnishings</p>
-              <p className="text-[11px] text-white/35 mt-0.5">Shipping Rate Control Panel</p>
+            <span className="text-sm font-semibold text-white tracking-tight">Hill Furnishings</span>
+            <span className="hidden sm:block text-white/15">·</span>
+            <span className="hidden sm:block text-xs text-white/30">Shipping Rate Control</span>
+          </div>
+
+          {/* Live rates toggle — centre of header */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 bg-white/4 border border-white/8 rounded-xl px-4 py-2">
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] font-semibold text-white/70 leading-none">
+                  {carrier === null ? "Checking…" : carrierFound ? (carrierActive ? "Live Rates ON" : "Live Rates OFF") : "Not Registered"}
+                </span>
+                <span className="text-[10px] text-white/25 mt-0.5 leading-none">
+                  {carrier === null ? "loading" : carrierFound ? (carrierActive ? "showing at checkout" : "hidden at checkout") : "register below"}
+                </span>
+              </div>
+              <Toggle
+                checked={carrierActive}
+                disabled={!carrierFound || togglingCarrier || carrier === null}
+                onChange={toggleCarrier}
+              />
             </div>
           </div>
-          <button onClick={onLock} className="text-xs text-white/30 hover:text-white/60 transition-colors px-3 py-1.5 rounded-lg border border-white/8 hover:border-white/20">
+
+          <button onClick={onLock} className="text-[11px] text-white/25 hover:text-white/50 transition-colors px-3 py-1.5 rounded-lg border border-white/6 hover:border-white/15 flex-shrink-0">
             Lock
           </button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-[1100px] mx-auto px-6 py-7 space-y-5">
 
-        {/* Status Row */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Toggle feedback */}
+        {carrierToggleMsg && (
+          <Banner type={carrierToggleMsg.type} message={carrierToggleMsg.text} onDismiss={() => setCarrierToggleMsg(null)} />
+        )}
+
+        {/* ── Status Row ── */}
+        <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "API Server", sub: "Live endpoint", ok: health },
-            { label: "Shippit", sub: shippit?.detail ?? "Checking…", ok: shippit?.ok ?? null },
-            { label: "Shopify Admin", sub: shopify?.connected ? shopify.tokenPrefix ?? "Connected" : "Not connected", ok: shopify?.connected ?? null },
-          ].map(({ label, sub, ok }) => (
-            <div key={label} className="bg-white/4 border border-white/8 rounded-xl p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-white">{label}</p>
-                <p className="text-xs text-white/35 mt-0.5 truncate max-w-[140px]">{sub}</p>
+            { label: "API Server", sub: "Express / Node.js", state: health === null ? "loading" : health ? "ok" : "warn" },
+            { label: "Shippit API", sub: shippit?.detail ?? "Connecting…", state: shippit === null ? "loading" : shippit.ok ? "ok" : "warn" },
+            { label: "Shopify Admin", sub: shopify?.connected ? shopify.tokenPrefix ?? "Connected" : "Not connected", state: shopify === null ? "loading" : shopify.connected ? "ok" : "warn" },
+          ].map(({ label, sub, state }) => (
+            <div key={label} className="bg-white/[.025] border border-white/7 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white leading-none">{label}</p>
+                <p className="text-[11px] text-white/30 mt-1 truncate">{sub}</p>
               </div>
-              <StatusDot ok={ok} />
+              <Dot state={state as "ok" | "warn" | "loading"} />
             </div>
           ))}
         </div>
 
-        {/* Two column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* ── Two-column layout ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
 
-          {/* Left — Quote Tester (wider) */}
-          <div className="lg:col-span-3 bg-white/4 border border-white/8 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-white mb-1">Live Quote Tester</h2>
-            <p className="text-xs text-white/35 mb-5">Simulates a real Shopify checkout request with volumetric weight.</p>
-
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className={labelCls}>Destination Postcode</label>
-                <input className={inputCls} value={postcode} onChange={e => setPostcode(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>Suburb</label>
-                <input className={inputCls} value={suburb} onChange={e => setSuburb(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>State</label>
-                <input className={inputCls} value={stateName} onChange={e => setStateName(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>Weight (kg)</label>
-                <input type="number" className={inputCls} value={weightKg} onChange={e => setWeightKg(e.target.value)} />
-              </div>
+          {/* LEFT — Quote Tester */}
+          <div className="bg-white/[.025] border border-white/7 rounded-2xl p-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Live Quote Tester</h2>
+              <p className="text-[11px] text-white/30 mt-1">Simulates a Shopify checkout request. Dimensions drive volumetric weight.</p>
             </div>
 
-            <div className="border-t border-white/6 pt-3 mb-3">
-              <p className="text-[11px] text-white/30 uppercase tracking-widest mb-3">Parcel Dimensions (cm)</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div><label className={lbl}>Postcode</label><input className={inp} value={postcode} onChange={e => setPostcode(e.target.value)} /></div>
+              <div><label className={lbl}>Suburb</label><input className={inp} value={suburb} onChange={e => setSuburb(e.target.value)} /></div>
+              <div><label className={lbl}>State</label><input className={inp} value={stateName} onChange={e => setStateName(e.target.value)} /></div>
+              <div><label className={lbl}>Weight (kg)</label><input type="number" className={inp} value={weightKg} onChange={e => setWeightKg(e.target.value)} /></div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-medium text-white/20 uppercase tracking-[.15em] mb-3">Parcel dimensions (cm)</p>
               <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className={labelCls}>Length</label>
-                  <input type="number" className={inputCls} value={lengthCm} onChange={e => setLengthCm(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>Width</label>
-                  <input type="number" className={inputCls} value={widthCm} onChange={e => setWidthCm(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>Height</label>
-                  <input type="number" className={inputCls} value={heightCm} onChange={e => setHeightCm(e.target.value)} />
-                </div>
+                <div><label className={lbl}>Length</label><input type="number" className={inp} value={lengthCm} onChange={e => setLengthCm(e.target.value)} /></div>
+                <div><label className={lbl}>Width</label><input type="number" className={inp} value={widthCm} onChange={e => setWidthCm(e.target.value)} /></div>
+                <div><label className={lbl}>Height</label><input type="number" className={inp} value={heightCm} onChange={e => setHeightCm(e.target.value)} /></div>
               </div>
             </div>
 
             <button
-              onClick={runTest}
-              disabled={testing}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-colors"
+              onClick={runTest} disabled={testing}
+              className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[.99] disabled:opacity-40 text-white font-medium rounded-xl py-3 text-sm transition-all duration-150"
             >
               {testing ? "Fetching rates…" : "Calculate Shipping Rates"}
             </button>
 
-            {testError && (
-              <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-xs text-red-300">{testError}</div>
-            )}
+            {/* Errors */}
+            {testError && <Banner type="error" message={testError} onDismiss={() => setTestError(null)} />}
 
+            {/* Weight breakdown */}
             {calcDetail && (
-              <div className="mt-4 bg-white/3 border border-white/8 rounded-xl p-3">
-                <p className="text-[11px] text-white/35 uppercase tracking-widest mb-2">Weight Calculation</p>
-                <p className="text-xs text-white/70 font-mono">{calcDetail}</p>
+              <div className="bg-white/3 border border-white/6 rounded-xl px-4 py-3">
+                <p className="text-[10px] font-medium text-white/25 uppercase tracking-[.15em] mb-1.5">Weight Calculation</p>
+                <p className="text-xs text-white/60 font-mono">{calcDetail}</p>
               </div>
             )}
 
-            {rates !== null && (
-              <div className="mt-3 space-y-2">
-                <p className="text-[11px] text-white/35 uppercase tracking-widest">{rates.length} rate{rates.length !== 1 ? "s" : ""} returned</p>
-                {rates.length === 0 && <p className="text-xs text-white/30 italic">No rates returned for this destination.</p>}
+            {/* Rates */}
+            {rates !== null && rates.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium text-white/25 uppercase tracking-[.15em]">{rates.length} rate{rates.length !== 1 ? "s" : ""} returned</p>
                 {rates.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white/4 border border-white/8 rounded-xl px-4 py-3">
+                  <div key={i} className="flex items-center justify-between bg-white/3 border border-white/7 rounded-xl px-4 py-3 hover:bg-white/5 transition-colors">
                     <div>
                       <p className="text-sm font-medium text-white">{r.service_name}</p>
-                      {r.description && <p className="text-xs text-white/35 mt-0.5">{r.description}</p>}
+                      {r.description && <p className="text-[11px] text-white/30 mt-0.5">{r.description}</p>}
                     </div>
-                    <p className="text-sm font-semibold text-emerald-400">${(parseInt(r.total_price) / 100).toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-emerald-400 ml-4 flex-shrink-0">${(parseInt(r.total_price) / 100).toFixed(2)}</p>
                   </div>
                 ))}
               </div>
             )}
+
+            {rates !== null && rates.length === 0 && !testError && (
+              <Banner type="info" message="No rates returned for this destination. Shippit may not service this area, or the parcel may exceed carrier limits." />
+            )}
           </div>
 
-          {/* Right column */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* RIGHT column */}
+          <div className="space-y-4">
 
-            {/* Shopify Setup */}
-            <div className="bg-white/4 border border-white/8 rounded-2xl p-6 space-y-5">
-              <h2 className="text-sm font-semibold text-white">Shopify Connection</h2>
+            {/* Carrier Control Card */}
+            <div className="bg-white/[.025] border border-white/7 rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-white mb-4">Carrier Service</h2>
 
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${shopify?.connected ? "bg-emerald-500/20 text-emerald-400" : "bg-white/10 text-white/40"}`}>
-                    {shopify?.connected ? "✓" : "1"}
-                  </div>
-                  <p className="text-xs font-medium text-white/70">Connect Admin API</p>
+              <div className={`rounded-xl border px-4 py-4 mb-4 ${
+                carrier === null ? "border-white/8 bg-white/2" :
+                !carrierFound ? "border-amber-500/20 bg-amber-500/5" :
+                carrierActive ? "border-emerald-500/20 bg-emerald-500/5" : "border-white/8 bg-white/2"
+              }`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium text-white">
+                    {carrier === null ? "Loading…" : !carrierFound ? "Not Registered" : "Shippit Live Rates"}
+                  </p>
+                  <Dot state={carrier === null ? "loading" : carrierActive ? "ok" : "warn"} />
                 </div>
-                {!shopify?.connected ? (
-                  <>
-                    <div className="bg-white/3 border border-white/8 rounded-lg p-3 mb-3 font-mono text-[11px] text-white/40 break-all leading-relaxed">
-                      Redirect URL:<br/>
-                      <span className="text-blue-400">{origin}/api/shopify/auth/callback</span>
-                    </div>
-                    <a
-                      href={`${API_BASE}/shopify/auth`}
-                      className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg py-2.5 transition-colors no-underline"
-                    >
-                      Connect to Shopify →
-                    </a>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-                    <span>✓</span> Admin API connected
-                  </div>
-                )}
+                <p className="text-[11px] text-white/35">
+                  {carrier === null ? "Fetching status from Shopify…"
+                    : !carrierFound ? "Register the carrier service below first."
+                    : carrierActive ? "Checkout is calling this middleware for live rates."
+                    : "Carrier is inactive — checkout uses default shipping."}
+                </p>
+                {carrier?.error && <p className="text-[11px] text-red-400/80 mt-2 font-mono">{carrier.error}</p>}
               </div>
 
-              <div className="border-t border-white/6 pt-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-5 h-5 rounded-full bg-white/10 text-white/40 flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</div>
-                  <p className="text-xs font-medium text-white/70">Register Carrier Service</p>
-                </div>
-                <div className="bg-white/3 border border-white/8 rounded-lg p-3 mb-3 font-mono text-[11px] text-white/40 break-all leading-relaxed">
-                  Callback URL:<br/>
-                  <span className="text-blue-400">{origin}/api/shipping/rates</span>
-                </div>
-                <button
-                  onClick={registerCarrier}
-                  disabled={registering || !shopify?.connected}
-                  className="w-full bg-white/8 hover:bg-white/12 disabled:opacity-30 border border-white/10 text-white text-xs font-medium rounded-lg py-2.5 transition-colors"
-                >
-                  {registering ? "Registering…" : "Register Carrier Service"}
-                </button>
-                {!shopify?.connected && <p className="text-[11px] text-white/25 mt-1.5 text-center">Complete step 1 first</p>}
-                {registerResult && (
-                  <div className={`mt-3 rounded-lg p-3 text-[11px] font-mono whitespace-pre-wrap ${registerResult.ok ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300" : "bg-red-500/10 border border-red-500/20 text-red-300"}`}>
-                    {registerResult.msg}
+              {carrierFound && (
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="text-sm text-white/70">{carrierActive ? "Disable" : "Enable"} live rates</p>
+                    <p className="text-[11px] text-white/25 mt-0.5">{carrierActive ? "Pause Shippit at checkout" : "Activate Shippit at checkout"}</p>
                   </div>
-                )}
-              </div>
+                  <Toggle checked={carrierActive} disabled={togglingCarrier} onChange={toggleCarrier} />
+                </div>
+              )}
+
+              {!carrierFound && carrier !== null && (
+                <div className="space-y-3">
+                  <div className="bg-white/3 border border-white/6 rounded-lg p-3 font-mono text-[11px] text-blue-400/80 break-all">
+                    {origin}/api/shipping/rates
+                  </div>
+                  <button
+                    onClick={registerCarrier} disabled={registering || !shopify?.connected}
+                    className="w-full bg-white/6 hover:bg-white/10 disabled:opacity-30 border border-white/8 text-white/80 text-xs font-medium rounded-lg py-2.5 transition-colors"
+                  >
+                    {registering ? "Registering…" : "Register Carrier Service"}
+                  </button>
+                  {!shopify?.connected && <p className="text-[11px] text-white/20 text-center">Connect Shopify Admin first</p>}
+                </div>
+              )}
+
+              {registerMsg && <div className="mt-3"><Banner type={registerMsg.type} message={registerMsg.text} onDismiss={() => setRegisterMsg(null)} /></div>}
+            </div>
+
+            {/* Shopify Connection */}
+            <div className="bg-white/[.025] border border-white/7 rounded-2xl p-5 space-y-4">
+              <h2 className="text-sm font-semibold text-white">Shopify Admin</h2>
+
+              {shopify?.connected ? (
+                <Banner type="success" message={`Connected — token ${shopify.tokenPrefix}`} />
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-white/35 leading-relaxed">Add this redirect URL in your Shopify App → Configuration before connecting:</p>
+                  <div className="bg-white/3 border border-white/6 rounded-lg p-3 font-mono text-[11px] text-blue-400/80 break-all">
+                    {origin}/api/shopify/auth/callback
+                  </div>
+                  <a href={`${API}/shopify/auth`} className="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-xl py-3 transition-colors no-underline">
+                    Connect Shopify Admin →
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* How it works */}
-            <div className="bg-white/4 border border-white/8 rounded-2xl p-6">
+            <div className="bg-white/[.025] border border-white/7 rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-white mb-4">How It Works</h2>
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {[
-                  ["Checkout trigger", "Shopify calls the callback URL with cart items and destination."],
-                  ["Fetch dimensions", "Metafields (custom.length/width/height) fetched per variant via GraphQL."],
-                  ["Volumetric weight", "MAX(dead weight, L×W×H÷250) determines the carrier charge."],
-                  ["Live Shippit quote", "Real-time rates returned and shown at checkout."],
-                ].map(([title, desc], i) => (
+                  ["Checkout trigger", "Shopify calls /api/shipping/rates with cart items and destination."],
+                  ["Fetch dimensions", "custom.length, width, height (cm) fetched per variant via GraphQL."],
+                  ["Volumetric weight", "MAX(dead wt, L×W×H÷4000) — carrier charges by whichever is greater."],
+                  ["Live quote", "Shippit returns real-time rates per carrier, shown at checkout."],
+                ].map(([t, d], i) => (
                   <div key={i} className="flex gap-3">
                     <span className="w-5 h-5 rounded-full bg-blue-600/20 text-blue-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
                     <div>
-                      <p className="text-xs font-medium text-white/80">{title}</p>
-                      <p className="text-[11px] text-white/35 mt-0.5 leading-relaxed">{desc}</p>
+                      <p className="text-xs font-medium text-white/75">{t}</p>
+                      <p className="text-[11px] text-white/30 mt-0.5 leading-relaxed">{d}</p>
                     </div>
                   </div>
                 ))}
@@ -402,8 +455,8 @@ function Dashboard({ onLock }: { onLock: () => void }) {
   );
 }
 
+/* ── App root ─────────────────────────────────────────────── */
 export default function App() {
   const { authed, unlock, lock } = usePinAuth();
-  if (!authed) return <PinGate onUnlock={unlock} />;
-  return <Dashboard onLock={lock} />;
+  return authed ? <Dashboard onLock={lock} /> : <PinGate onUnlock={unlock} />;
 }

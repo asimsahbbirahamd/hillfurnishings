@@ -193,6 +193,54 @@ router.post("/shipping/rates", async (req: Request, res: Response) => {
   }
 });
 
+async function shopifyRequest(path: string, method = "GET", body?: unknown) {
+  const SHOPIFY_STORE_DOMAIN = process.env["SHOPIFY_STORE_DOMAIN"]!;
+  const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"]!;
+  const res = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) throw new Error(`Shopify API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+router.get("/shipping/carrier-status", async (_req: Request, res: Response) => {
+  try {
+    const json = await shopifyRequest("/carrier_services.json") as {
+      carrier_services?: { id: number; name: string; active: boolean; callback_url: string }[];
+    };
+    const services = json.carrier_services ?? [];
+    const ours = services.find(s => s.name === "Shippit Live Rates") ?? null;
+    res.json({ found: !!ours, service: ours });
+  } catch (err) {
+    res.status(500).json({ found: false, error: String(err) });
+  }
+});
+
+router.post("/shipping/carrier-set-active", async (req: Request, res: Response) => {
+  try {
+    const { active } = req.body as { active: boolean };
+    const listJson = await shopifyRequest("/carrier_services.json") as {
+      carrier_services?: { id: number; name: string; active: boolean }[];
+    };
+    const ours = (listJson.carrier_services ?? []).find(s => s.name === "Shippit Live Rates");
+    if (!ours) {
+      res.status(404).json({ error: "Carrier service 'Shippit Live Rates' not found. Register it first." });
+      return;
+    }
+    const updated = await shopifyRequest(`/carrier_services/${ours.id}.json`, "PUT", {
+      carrier_service: { id: ours.id, active },
+    }) as { carrier_service?: { id: number; name: string; active: boolean } };
+    res.json({ success: true, service: updated.carrier_service });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 router.post("/shipping/register", async (_req: Request, res: Response) => {
   const SHOPIFY_STORE_DOMAIN = process.env["SHOPIFY_STORE_DOMAIN"]!;
   const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"]!;
