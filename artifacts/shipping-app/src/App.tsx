@@ -71,7 +71,7 @@ function PinGate({ onUnlock }: { onUnlock: (p: string) => boolean }) {
 }
 
 /* ── Types ────────────────────────────────────────────────── */
-interface Rate { service_name: string; total_price: string; description?: string; }
+interface Rate { service_name: string; total_price: string; description?: string; carrier?: string; }
 interface CarrierService { id: number; name: string; active: boolean; callback_url?: string; }
 interface CarrierStatus { found: boolean; service: CarrierService | null; error?: string; }
 
@@ -127,10 +127,10 @@ function Dashboard({ onLock }: { onLock: () => void }) {
   const [postcode, setPostcode] = useState("2000");
   const [suburb, setSuburb] = useState("Sydney");
   const [stateName, setStateName] = useState("NSW");
-  const [weightKg, setWeightKg] = useState("22");
-  const [lengthCm, setLengthCm] = useState("147");
-  const [widthCm, setWidthCm] = useState("95");
-  const [heightCm, setHeightCm] = useState("57");
+  const [weightKg, setWeightKg] = useState("12");
+  const [lengthCm, setLengthCm] = useState("127");
+  const [widthCm, setWidthCm] = useState("102");
+  const [heightCm, setHeightCm] = useState("8");
   const [testing, setTesting] = useState(false);
   const [rates, setRates] = useState<Rate[] | null>(null);
   const [calcDetail, setCalcDetail] = useState<string | null>(null);
@@ -342,7 +342,13 @@ function Dashboard({ onLock }: { onLock: () => void }) {
                   <div key={i} className="flex items-center justify-between bg-white/3 border border-white/7 rounded-xl px-4 py-3 hover:bg-white/5 transition-colors">
                     <div>
                       <p className="text-sm font-medium text-white">{r.service_name}</p>
-                      {r.description && <p className="text-[11px] text-white/30 mt-0.5">{r.description}</p>}
+                      {r.carrier && (
+                        <p className="text-[11px] text-white/35 mt-0.5">
+                          via {r.carrier.replace(/AuNz$/i, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim()}
+                          {r.description ? ` · ${r.description}` : ""}
+                        </p>
+                      )}
+                      {!r.carrier && r.description && <p className="text-[11px] text-white/30 mt-0.5">{r.description}</p>}
                     </div>
                     <p className="text-sm font-semibold text-emerald-400 ml-4 flex-shrink-0">${(parseInt(r.total_price) / 100).toFixed(2)}</p>
                   </div>
