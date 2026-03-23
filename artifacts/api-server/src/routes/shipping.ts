@@ -334,4 +334,92 @@ router.get("/shipping/test", async (req: Request, res: Response) => {
   }
 });
 
+// Dedicated tester endpoint — accepts dimensions directly, bypasses Shopify variant lookup
+router.post("/shipping/quote-test", async (req: Request, res: Response) => {
+  const log = req.log;
+  try {
+    const {
+      weightKg,
+      lengthCm,
+      widthCm,
+      heightCm,
+      destPostcode,
+      destSuburb,
+      destState,
+    } = req.body as {
+      weightKg: number;
+      lengthCm: number;
+      widthCm: number;
+      heightCm: number;
+      destPostcode: string;
+      destSuburb: string;
+      destState: string;
+    };
+
+    const lengthM = lengthCm / 100;
+    const widthM = widthCm / 100;
+    const heightM = heightCm / 100;
+
+    // Shippit cubic weight: volume (m³) × 250 kg/m³  =  L_cm × W_cm × H_cm / 4000
+    const volumetricKg = lengthM * widthM * heightM * 250;
+    const chargedKg = Math.max(weightKg, volumetricKg);
+
+    log.info(
+      { weightKg, lengthCm, widthCm, heightCm, volumetricKg: +volumetricKg.toFixed(3), chargedKg: +chargedKg.toFixed(3) },
+      "quote-test weight calculation"
+    );
+
+    const quotes = await getShippitQuotes({
+      dropoff_postcode: destPostcode,
+      dropoff_state: destState,
+      dropoff_suburb: destSuburb,
+      dropoff_country_code: "AU",
+      parcel_attributes: [{
+        qty: 1,
+        weight: +chargedKg.toFixed(3),
+        length: +lengthM.toFixed(4),
+        width: +widthM.toFixed(4),
+        depth: +heightM.toFixed(4),
+      }],
+      return_all_quotes: true,
+    });
+
+    const rates: { service_name: string; service_code: string; total_price: string; description: string; currency: string }[] = [];
+    for (const carrier of quotes) {
+      if (!carrier.success || !Array.isArray(carrier.quotes) || carrier.quotes.length === 0) continue;
+      const carrierLevel = carrier.service_level as string | undefined;
+      for (const quote of carrier.quotes) {
+        if (!quote.price || quote.price <= 0) continue;
+        const level = quote.service_level ?? carrierLevel ?? "standard";
+        const levelFmt = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+        const courierClean = carrier.courier_type
+          .replace(/AuNz$/i, "")
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .trim();
+        const transit = quote.estimated_transit_time ? `Est. ${quote.estimated_transit_time}` : "";
+        rates.push({
+          service_name: `${courierClean} – ${levelFmt}`,
+          service_code: `SHIPPIT_${carrier.courier_type.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_${level.toUpperCase()}`,
+          total_price: Math.round(quote.price * 100).toString(),
+          description: transit ? `${transit} · Calculated by Hill Furnishings` : "Calculated by Hill Furnishings",
+          currency: "AUD",
+        });
+      }
+    }
+
+    res.json({
+      rates,
+      calc: {
+        deadKg: weightKg,
+        volumetricKg: +volumetricKg.toFixed(3),
+        chargedKg: +chargedKg.toFixed(3),
+        method: volumetricKg > weightKg ? "volumetric" : "dead weight",
+      },
+    });
+  } catch (err) {
+    log.error({ err }, "quote-test failed");
+    res.status(500).json({ rates: [], error: String(err) });
+  }
+});
+
 export default router;

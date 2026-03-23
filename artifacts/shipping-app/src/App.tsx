@@ -179,24 +179,26 @@ function Dashboard({ onLock }: { onLock: () => void }) {
   async function runTest() {
     setTesting(true); setRates(null); setCalcDetail(null); setTestError(null);
     try {
-      const res = await fetch(`${API}/shipping/rates`, {
+      const res = await fetch(`${API}/shipping/quote-test`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rate: {
-          origin: { country: "AU", postal_code: "4562", province: "QLD", city: "Doonan" },
-          destination: { country: "AU", postal_code: postcode, province: stateName, city: suburb, name: "Test" },
-          items: [{ name: "Item", sku: "TEST-001", quantity: 1, grams: Math.round(parseFloat(weightKg) * 1000),
-            price: 50000, vendor: "Hill Furnishings", requires_shipping: true, taxable: true,
-            fulfillment_service: "manual", properties: null, product_id: 1, variant_id: 1 }],
-          currency: "AUD", locale: "en",
-        }}),
+        body: JSON.stringify({
+          weightKg: parseFloat(weightKg),
+          lengthCm: parseFloat(lengthCm),
+          widthCm: parseFloat(widthCm),
+          heightCm: parseFloat(heightCm),
+          destPostcode: postcode,
+          destSuburb: suburb,
+          destState: stateName,
+        }),
       });
       const j = await res.json();
-      const vol = (parseFloat(lengthCm) * parseFloat(widthCm) * parseFloat(heightCm)) / 4000;
-      const dead = parseFloat(weightKg);
-      const charged = Math.max(dead, vol);
-      setCalcDetail(`Dead ${dead} kg  ·  Volumetric ${vol.toFixed(2)} kg  →  Charged ${charged.toFixed(2)} kg`);
+      if (j.error) { setTestError(j.error); return; }
+      const { calc } = j;
+      setCalcDetail(
+        `Dead weight: ${calc.deadKg} kg\nVolumetric: ${calc.volumetricKg} kg  (${lengthCm}×${widthCm}×${heightCm} cm ÷ 4,000)\nCharged: ${calc.chargedKg} kg  ← ${calc.method}`
+      );
       setRates(j.rates ?? []);
-      if (!j.rates?.length) setTestError("Shippit returned no rates for this destination. Try a different postcode.");
+      if (!j.rates?.length) setTestError("Shippit returned no rates for this destination. The postcode may not be serviceable or the parcel may exceed carrier limits.");
     } catch (e) { setTestError(String(e)); }
     finally { setTesting(false); }
   }
