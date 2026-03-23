@@ -37,6 +37,7 @@ function StatusBadge({ ok }: { ok: boolean | null }) {
 function Dashboard() {
   const [health, setHealth] = useState<boolean | null>(null);
   const [shippit, setShippit] = useState<StatusResult | null>(null);
+  const [shopify, setShopify] = useState<{ connected: boolean; tokenPrefix: string | null } | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -65,6 +66,13 @@ function Dashboard() {
         }
       })
       .catch((e) => setShippit({ ok: false, label: "Shippit API", detail: String(e) }));
+
+    fetch(`${API_BASE}/shopify/token-status`)
+      .then(async (r) => {
+        const j = await r.json();
+        setShopify(j);
+      })
+      .catch(() => setShopify({ connected: false, tokenPrefix: null }));
   }, []);
 
   async function runQuoteTest() {
@@ -159,7 +167,7 @@ function Dashboard() {
         {/* Status Cards */}
         <section>
           <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">System Status</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-800">API Server</p>
@@ -173,6 +181,13 @@ function Dashboard() {
                 <p className="text-xs text-gray-400 mt-0.5">{shippit?.detail ?? "Connecting…"}</p>
               </div>
               <StatusBadge ok={shippit ? shippit.ok : null} />
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800">Shopify Admin</p>
+                <p className="text-xs text-gray-400 mt-0.5">{shopify?.connected ? shopify.tokenPrefix : "Not connected"}</p>
+              </div>
+              <StatusBadge ok={shopify ? shopify.connected : null} />
             </div>
           </div>
         </section>
@@ -259,26 +274,66 @@ function Dashboard() {
         </section>
 
         {/* Setup Section */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-1">Shopify Setup</h2>
-          <p className="text-xs text-gray-500 mb-4">
-            Once your Shopify Admin API access token is configured, click below to register this app as a carrier service in your store.
-          </p>
-          <div className="bg-gray-50 rounded-lg p-3 mb-4 font-mono text-xs text-gray-600 border border-gray-200">
-            Callback URL: <span className="text-indigo-600">{window.location.origin.replace(/:[0-9]+$/, "")}/api/shipping/rates</span>
+        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+          <h2 className="text-sm font-semibold text-gray-900">Shopify Setup</h2>
+
+          {/* Step 1 — Connect */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
+              <p className="text-sm font-medium text-gray-800">Connect Shopify Admin</p>
+              {shopify?.connected && <span className="text-xs text-green-600 font-medium">✓ Done</span>}
+            </div>
+            <p className="text-xs text-gray-500 mb-3 ml-7">
+              Before connecting, go to your Shopify Dev Dashboard app → Configuration → add the redirect URL below, then click Connect.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-3 mb-3 font-mono text-xs text-gray-600 border border-gray-200 ml-7">
+              Redirect URL to add in Shopify:<br />
+              <span className="text-indigo-600 break-all">{window.location.origin.replace(/:[0-9]+$/, "")}/api/shopify/auth/callback</span>
+            </div>
+            {!shopify?.connected && (
+              <div className="ml-7">
+                <a
+                  href={`${API_BASE}/shopify/auth`}
+                  className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors no-underline"
+                >
+                  Connect to Shopify →
+                </a>
+              </div>
+            )}
           </div>
-          <button
-            onClick={registerCarrierService}
-            disabled={registering}
-            className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50 transition-colors"
-          >
-            {registering ? "Registering…" : "Register Carrier Service in Shopify"}
-          </button>
-          {registerResult && (
-            <pre className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap font-mono">
-              {registerResult}
-            </pre>
-          )}
+
+          {/* Step 2 — Register carrier service */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
+              <p className="text-sm font-medium text-gray-800">Register Carrier Service</p>
+            </div>
+            <p className="text-xs text-gray-500 mb-3 ml-7">
+              Once connected, register this middleware as a carrier service so Shopify calls it at checkout.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-3 mb-3 font-mono text-xs text-gray-600 border border-gray-200 ml-7">
+              Carrier callback URL:<br />
+              <span className="text-indigo-600 break-all">{window.location.origin.replace(/:[0-9]+$/, "")}/api/shipping/rates</span>
+            </div>
+            <div className="ml-7">
+              <button
+                onClick={registerCarrierService}
+                disabled={registering || !shopify?.connected}
+                className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50 transition-colors"
+              >
+                {registering ? "Registering…" : "Register Carrier Service in Shopify"}
+              </button>
+              {!shopify?.connected && (
+                <p className="text-xs text-gray-400 mt-1">Complete Step 1 first.</p>
+              )}
+            </div>
+            {registerResult && (
+              <pre className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap font-mono ml-7">
+                {registerResult}
+              </pre>
+            )}
+          </div>
         </section>
 
       </main>
