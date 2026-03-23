@@ -1,0 +1,228 @@
+📦 Shipping Integration Analysis & Solution Plan
+1️⃣ Problem Summary
+
+We are trying to achieve:
+
+Accurate real-time shipping rates at checkout using Shippit
+based on product/variant dimensions and weight
+
+However, current behavior:
+
+Shopify sends only weight → Shippit calculates incorrect quotes
+
+Result:
+
+Checkout shows lower shipping cost
+Actual carrier cost is much higher
+Leads to misdeclaration fees and losses
+2️⃣ Root Cause
+
+Shippit calculates shipping using:
+
+Charged Weight = MAX(actual weight, volumetric weight)
+
+Volumetric formula:
+
+(L × W × H) / 250
+
+Example:
+
+Actual weight: 22 kg
+Volumetric: 79 kg
+→ Carrier charges 79 kg
+
+But Shopify sends:
+
+22 kg only
+
+So checkout shows:
+
+~$30 (incorrect)
+instead of ~$80 (correct)
+3️⃣ What We Tried
+✅ Attempt 1 — Shopify Default Setup
+Used Shopify weight field
+Used Shippit live rates
+
+❌ Result:
+
+Shopify only sends dead weight
+No dimension-based calculation
+✅ Attempt 2 — Product Metafields
+
+We created:
+
+Product metafields:
+length
+width
+height
+
+✔ Result:
+
+Shippit reads product-level dimensions
+Works for simple products
+
+❌ Limitation:
+
+Does NOT support variant-specific dimensions
+All variants treated the same
+❌ Attempt 3 — Variant Metafields
+
+We created:
+
+Variant metafields:
+custom.length
+custom.width
+custom.height
+
+❌ Result:
+
+Shippit does NOT read variant metafields properly
+Dimensions ignored at checkout
+
+👉 This is the core limitation of Shippit’s Shopify integration
+
+❌ Attempt 4 — Shopify Flow Automation
+
+Goal:
+
+Auto calculate volumetric weight
+
+❌ Issues:
+
+Shopify Flow cannot perform calculations reliably
+Cannot dynamically update weight using formulas
+Not scalable or accurate
+4️⃣ Conclusion
+Shippit Shopify app limitation:
+→ Does not properly support variant-level dimensions
+→ Cannot calculate volumetric weight at checkout
+
+So:
+
+Native integration is not sufficient for this use case
+🚀 5️⃣ Proposed Solution (Custom App)
+
+We will build a custom Shopify app (middle layer).
+
+Architecture
+Shopify Checkout
+      ↓
+Custom App (Carrier Service)
+      ↓
+Reads cart + variant data
+      ↓
+Calculates dimensions / volumetric weight
+      ↓
+Calls Shippit API (Quotes)
+      ↓
+Returns accurate shipping rates
+      ↓
+Shopify displays rates at checkout
+What This Fixes
+
+✔ Uses variant-level data correctly
+✔ Calculates volumetric weight properly
+✔ Sends accurate parcel details to Shippit
+✔ Eliminates manual corrections
+✔ Prevents misdeclaration charges
+
+Key Components
+1️⃣ Shopify CarrierService API
+Allows custom shipping rates at checkout
+Shopify calls our app in real-time
+2️⃣ Custom Logic Layer
+
+Handles:
+
+• Variant dimensions
+• Multi-item orders
+• Packaging rules
+• Weight calculations
+3️⃣ Shippit API
+
+We will use:
+
+POST /quotes
+
+To fetch:
+
+Real carrier pricing
+4️⃣ Optional (Phase 2)
+
+After order is placed:
+
+Custom App → Shippit API → Create shipment
+
+Ensures:
+
+Same data used for quote = used for booking
+🧠 6️⃣ Why This Approach is Correct
+
+Because:
+
+Shopify → limited shipping logic
+Shippit → limited Shopify integration
+
+So we introduce:
+
+Custom layer = full control
+
+This is exactly how:
+
+Large Shopify stores
+Furniture brands
+3PL-integrated stores
+
+handle shipping.
+
+📊 7️⃣ Implementation Plan
+Phase 1 — MVP (2–3 days)
+
+✔ Build custom app
+✔ Setup CarrierService
+✔ Connect Shippit Quotes API
+✔ Return rates to checkout
+
+Phase 2 — Automation (Optional)
+
+✔ Auto-create Shippit orders
+✔ Auto-fill dimensions
+✔ Remove manual processing
+
+Phase 3 — Optimization (Future)
+
+✔ Multi-box packing
+✔ Smart carton selection
+✔ Shipping cost optimization
+
+⚠️ 8️⃣ Requirements
+
+Shopify must support:
+
+Carrier Calculated Shipping
+
+Needed:
+
+Advanced Shopify plan OR
+Add-on feature enabled
+💡 Final Recommendation
+Do NOT rely on Shippit native Shopify app for this use case
+
+Instead:
+
+Build custom CarrierService app
+→ use Shippit API directly
+✅ Final Outcome
+
+After implementation:
+
+Customer sees correct shipping at checkout
+↓
+No pricing mismatch
+↓
+No manual edits
+↓
+No losses
+↓
+Fully automated shipping flow
