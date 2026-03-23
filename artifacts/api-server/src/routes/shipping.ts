@@ -422,4 +422,29 @@ router.post("/shipping/quote-test", async (req: Request, res: Response) => {
   }
 });
 
+// Debug: returns full raw Shippit response including failures
+router.post("/shipping/debug-raw", async (req: Request, res: Response) => {
+  try {
+    const { weightKg, lengthCm, widthCm, heightCm, destPostcode, destSuburb, destState } =
+      req.body as { weightKg: number; lengthCm: number; widthCm: number; heightCm: number; destPostcode: string; destSuburb: string; destState: string };
+
+    const lM = lengthCm / 100, wM = widthCm / 100, hM = heightCm / 100;
+    const volKg = lM * wM * hM * 250;
+    const chargedKg = Math.max(weightKg, volKg);
+
+    const raw = await getShippitQuotes({
+      dropoff_postcode: destPostcode,
+      dropoff_state: destState,
+      dropoff_suburb: destSuburb,
+      dropoff_country_code: "AU",
+      parcel_attributes: [{ qty: 1, weight: +chargedKg.toFixed(3), length: +lM.toFixed(4), width: +wM.toFixed(4), depth: +hM.toFixed(4) }],
+      return_all_quotes: true,
+    });
+
+    res.json({ calc: { deadKg: weightKg, volumetricKg: +volKg.toFixed(3), chargedKg: +chargedKg.toFixed(3) }, raw });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;
