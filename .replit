@@ -24,3 +24,18 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+SHOPIFY_STORE_DOMAIN = "hillfurnishings.myshopify.com"
+SHIPPIT_API_URL = "https://app.shippit.com/api/3"
+PICKUP_SUBURB = "Doonan"
+PICKUP_POSTCODE = "4562"
+PICKUP_STATE = "QLD"
+PICKUP_COUNTRY = "AU"
+SHOPIFY_METAFIELD_NAMESPACE = "custom"
+SHOPIFY_METAFIELD_LENGTH_KEY = "length"
+SHOPIFY_METAFIELD_WIDTH_KEY = "width"
+SHOPIFY_METAFIELD_HEIGHT_KEY = "height"
+DIMENSION_UNIT = "cm"
