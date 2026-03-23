@@ -160,7 +160,8 @@ function Dashboard({ onLock }: { onLock: () => void }) {
         }),
       });
       const j = await res.json();
-      const vol = (parseFloat(lengthCm) * parseFloat(widthCm) * parseFloat(heightCm)) / 250 / 1000;
+      // Shippit cubic weight: L_cm × W_cm × H_cm / 4000 (= volume m³ × 250 kg/m³)
+      const vol = (parseFloat(lengthCm) * parseFloat(widthCm) * parseFloat(heightCm)) / 4000;
       const dead = parseFloat(weightKg);
       const charged = Math.max(dead, vol);
       setCalcDetail(`Dead ${dead} kg  ·  Volumetric ${vol.toFixed(2)} kg  →  Charged ${charged.toFixed(2)} kg`);

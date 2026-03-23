@@ -49,7 +49,9 @@ export function calculateChargedWeight(
   heightM: number | null
 ): number {
   if (lengthM !== null && widthM !== null && heightM !== null) {
-    const volumetricKg = (lengthM * 100 * widthM * 100 * heightM * 100) / 250;
+    // Shippit cubic weight: volume (m³) × 250 kg/m³
+    // Equivalent to: L_cm × W_cm × H_cm / 4000
+    const volumetricKg = lengthM * widthM * heightM * 250;
     return Math.max(weightKg, volumetricKg);
   }
   return weightKg;
