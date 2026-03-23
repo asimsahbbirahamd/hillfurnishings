@@ -51,39 +51,27 @@ interface ShopifyRate {
   max_delivery_date?: string;
 }
 
-// Maps Shippit service_level to a clean customer-facing label
-const SERVICE_LEVEL_LABEL: Record<string, string> = {
-  standard:         "Standard Shipping",
-  express:          "Express Shipping",
-  priority:         "Priority Shipping",
-  on_demand:        "On-Demand Delivery",
-  click_and_collect:"Click & Collect",
-};
+// Service levels to hide from customers
+const SKIP_LEVELS = new Set(["express", "click_and_collect"]);
 
-function serviceLevelLabel(level: string): string {
-  return SERVICE_LEVEL_LABEL[level.toLowerCase()] ?? (level.charAt(0).toUpperCase() + level.slice(1) + " Shipping");
+function cleanCourierName(courierType: string): string {
+  return courierType
+    .replace(/AuNz$/i, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function serviceLevelCode(level: string): string {
-  return `HF_${level.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-}
-
-interface RateCandidate {
-  price: number;
-  transitTime?: string;
-  courier: string;
-  serviceLevel: string;
+function normalisedServiceCode(courierType: string, serviceLevel: string): string {
+  return `SHIPPIT_${courierType.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_${serviceLevel.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
 }
 
 /**
- * From all Shippit carrier responses, extract the single cheapest rate
- * per service level (standard, express, etc.). This gives customers a
- * clean 2–3 option choice instead of every carrier listed separately.
+ * Expand all successful Shippit carrier quotes into individual rate entries,
+ * skipping express and click-and-collect service levels.
  */
-function cheapestPerServiceLevel(
-  shippitQuotes: ShippitQuoteResponseItem[]
-): Map<string, RateCandidate> {
-  const best = new Map<string, RateCandidate>();
+function expandRates(shippitQuotes: ShippitQuoteResponseItem[]) {
+  const results: { serviceName: string; serviceCode: string; price: number; transitTime?: string; carrier: string }[] = [];
 
   for (const carrier of shippitQuotes) {
     if (!carrier.success || !Array.isArray(carrier.quotes) || carrier.quotes.length === 0) continue;
@@ -92,20 +80,18 @@ function cheapestPerServiceLevel(
     for (const quote of carrier.quotes) {
       if (!quote.price || quote.price <= 0) continue;
       const level = (quote.service_level ?? carrierLevel).toLowerCase();
-      if (level === "click_and_collect") continue; // skip pickup options
-      const existing = best.get(level);
-      if (!existing || quote.price < existing.price) {
-        best.set(level, {
-          price: quote.price,
-          transitTime: quote.estimated_transit_time,
-          courier: carrier.courier_type,
-          serviceLevel: level,
-        });
-      }
+      if (SKIP_LEVELS.has(level)) continue;
+      results.push({
+        serviceName: cleanCourierName(carrier.courier_type),
+        serviceCode: normalisedServiceCode(carrier.courier_type, level),
+        price: quote.price,
+        transitTime: quote.estimated_transit_time,
+        carrier: carrier.courier_type,
+      });
     }
   }
 
-  return best;
+  return results;
 }
 
 router.post("/shipping/rates", async (req: Request, res: Response) => {
@@ -204,22 +190,14 @@ router.post("/shipping/rates", async (req: Request, res: Response) => {
       return;
     }
 
-    const best = cheapestPerServiceLevel(shippitQuotes);
+    const expanded = expandRates(shippitQuotes);
 
-    // Preferred display order
-    const levelOrder = ["standard", "express", "priority"];
-    const orderedLevels = [
-      ...levelOrder.filter(l => best.has(l)),
-      ...[...best.keys()].filter(l => !levelOrder.includes(l)),
-    ];
-
-    const rates: ShopifyRate[] = orderedLevels.map(level => {
-      const candidate = best.get(level)!;
-      const transitNote = candidate.transitTime ? `Est. ${candidate.transitTime}` : "";
+    const rates: ShopifyRate[] = expanded.map(r => {
+      const transitNote = r.transitTime ? `Est. ${r.transitTime}` : "";
       return {
-        service_name: serviceLevelLabel(level),
-        service_code: serviceLevelCode(level),
-        total_price: Math.round(candidate.price * 100).toString(),
+        service_name: r.serviceName,
+        service_code: r.serviceCode,
+        total_price: Math.round(r.price * 100).toString(),
         description: transitNote ? `${transitNote} · Calculated by Hill Furnishings` : "Calculated by Hill Furnishings",
         currency: currency ?? "AUD",
       };
@@ -424,22 +402,16 @@ router.post("/shipping/quote-test", async (req: Request, res: Response) => {
       return_all_quotes: true,
     });
 
-    const best = cheapestPerServiceLevel(quotes);
-    const levelOrder = ["standard", "express", "priority"];
-    const orderedLevels = [
-      ...levelOrder.filter(l => best.has(l)),
-      ...[...best.keys()].filter(l => !levelOrder.includes(l)),
-    ];
-    const rates = orderedLevels.map(level => {
-      const candidate = best.get(level)!;
-      const transit = candidate.transitTime ? `Est. ${candidate.transitTime}` : "";
+    const expanded = expandRates(quotes);
+    const rates = expanded.map(r => {
+      const transit = r.transitTime ? `Est. ${r.transitTime}` : "";
       return {
-        service_name: serviceLevelLabel(level),
-        service_code: serviceLevelCode(level),
-        total_price: Math.round(candidate.price * 100).toString(),
+        service_name: r.serviceName,
+        service_code: r.serviceCode,
+        total_price: Math.round(r.price * 100).toString(),
         description: transit ? `${transit} · Calculated by Hill Furnishings` : "Calculated by Hill Furnishings",
         currency: "AUD",
-        carrier: candidate.courier,
+        carrier: r.carrier,
       };
     });
 
