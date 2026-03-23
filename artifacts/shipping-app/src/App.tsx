@@ -342,13 +342,7 @@ function Dashboard({ onLock }: { onLock: () => void }) {
                   <div key={i} className="flex items-center justify-between bg-white/3 border border-white/7 rounded-xl px-4 py-3 hover:bg-white/5 transition-colors">
                     <div>
                       <p className="text-sm font-medium text-white">{r.service_name}</p>
-                      {r.carrier && (
-                        <p className="text-[11px] text-white/35 mt-0.5">
-                          via {r.carrier.replace(/AuNz$/i, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim()}
-                          {r.description ? ` · ${r.description}` : ""}
-                        </p>
-                      )}
-                      {!r.carrier && r.description && <p className="text-[11px] text-white/30 mt-0.5">{r.description}</p>}
+                      {r.description && <p className="text-[11px] text-white/30 mt-0.5">{r.description}</p>}
                     </div>
                     <p className="text-sm font-semibold text-emerald-400 ml-4 flex-shrink-0">${(parseInt(r.total_price) / 100).toFixed(2)}</p>
                   </div>
