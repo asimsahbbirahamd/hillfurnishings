@@ -139,6 +139,30 @@ function Dashboard({ onLock }: { onLock: () => void }) {
   const [registering, setRegistering] = useState(false);
   const [registerMsg, setRegisterMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
+  const [tokenInput, setTokenInput] = useState("");
+  const [savingToken, setSavingToken] = useState(false);
+  const [tokenMsg, setTokenMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
+
+  async function saveDirectToken() {
+    if (!tokenInput.trim()) return;
+    setSavingToken(true); setTokenMsg(null);
+    try {
+      const r = await fetch(`${API}/shopify/save-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: tokenInput.trim() }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Save failed");
+      setTokenMsg({ type: "success", text: `Token saved (${j.tokenPrefix})` });
+      setTokenInput("");
+      const status = await fetch(`${API}/shopify/token-status`).then(x => x.json());
+      setShopify(status);
+    } catch (e) {
+      setTokenMsg({ type: "error", text: String(e) });
+    } finally { setSavingToken(false); }
+  }
+
   const origin = window.location.origin;
 
   const loadCarrierStatus = useCallback(async () => {
@@ -414,19 +438,49 @@ function Dashboard({ onLock }: { onLock: () => void }) {
             <div className="bg-white/[.025] border border-white/7 rounded-2xl p-5 space-y-4">
               <h2 className="text-sm font-semibold text-white">Shopify Admin</h2>
 
-              {shopify?.connected ? (
+              {shopify?.connected && (
                 <Banner type="success" message={`Connected — token ${shopify.tokenPrefix}`} />
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-[11px] text-white/35 leading-relaxed">Add this redirect URL in your Shopify App → Configuration before connecting:</p>
-                  <div className="bg-white/3 border border-white/6 rounded-lg p-3 font-mono text-[11px] text-blue-400/80 break-all">
-                    {origin}/api/shopify/auth/callback
-                  </div>
-                  <a href={`${API}/shopify/auth`} className="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-xl py-3 transition-colors no-underline">
-                    Connect Shopify Admin →
-                  </a>
-                </div>
               )}
+
+              {tokenMsg && <Banner type={tokenMsg.type} message={tokenMsg.text} onDismiss={() => setTokenMsg(null)} />}
+
+              {/* Direct token paste — works for custom app tokens */}
+              <div className="space-y-2">
+                <p className="text-[11px] text-white/50 leading-relaxed font-medium">
+                  Paste your Shopify Admin API access token:
+                </p>
+                <p className="text-[11px] text-white/30 leading-relaxed">
+                  Shopify Admin → Settings → Apps → Develop apps → your app → API credentials → Admin API access token
+                </p>
+                <input
+                  type="password"
+                  value={tokenInput}
+                  onChange={e => setTokenInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && saveDirectToken()}
+                  placeholder="Paste token here…"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/80 placeholder-white/20 font-mono focus:outline-none focus:border-blue-500/50"
+                />
+                <button
+                  onClick={saveDirectToken}
+                  disabled={savingToken || !tokenInput.trim()}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-medium rounded-lg py-2.5 transition-colors"
+                >
+                  {savingToken ? "Saving…" : "Save Token"}
+                </button>
+              </div>
+
+              {/* OAuth fallback */}
+              <div className="border-t border-white/5 pt-3 space-y-2">
+                <p className="text-[10px] text-white/20 leading-relaxed">
+                  Or use the OAuth flow — add this URL to your Shopify App → Configuration → Redirect URLs first:
+                </p>
+                <div className="bg-white/3 border border-white/6 rounded-lg p-2 font-mono text-[10px] text-blue-400/60 break-all">
+                  {origin}/api/shopify/auth/callback
+                </div>
+                <a href={`${API}/shopify/auth`} className="flex items-center justify-center w-full bg-white/5 hover:bg-white/8 border border-white/8 text-white/50 text-xs font-medium rounded-lg py-2 transition-colors no-underline">
+                  OAuth Flow →
+                </a>
+              </div>
             </div>
 
             {/* How it works */}

@@ -1,13 +1,31 @@
 import { logger } from "./logger";
+import fs from "fs";
+import path from "path";
 
 const SHOPIFY_STORE_DOMAIN = process.env["SHOPIFY_STORE_DOMAIN"]!;
-const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"]!;
 const SHOPIFY_API_VERSION = "2025-01";
 const NAMESPACE = process.env["SHOPIFY_METAFIELD_NAMESPACE"] ?? "custom";
 const LENGTH_KEY = process.env["SHOPIFY_METAFIELD_LENGTH_KEY"] ?? "length";
 const WIDTH_KEY = process.env["SHOPIFY_METAFIELD_WIDTH_KEY"] ?? "width";
 const HEIGHT_KEY = process.env["SHOPIFY_METAFIELD_HEIGHT_KEY"] ?? "height";
 const DIMENSION_UNIT = process.env["DIMENSION_UNIT"] ?? "cm";
+
+const TOKEN_FILE = path.join(process.cwd(), ".shopify-token");
+
+/**
+ * Get the Shopify Admin API token. Priority order:
+ * 1. File saved by OAuth callback (most authoritative — overrides env var)
+ * 2. SHOPIFY_ADMIN_ACCESS_TOKEN env var / secret
+ */
+function getToken(): string {
+  try {
+    const fileToken = fs.readFileSync(TOKEN_FILE, "utf8").trim();
+    if (fileToken) return fileToken;
+  } catch {
+    // file not present — fall through
+  }
+  return process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"] ?? "";
+}
 
 export interface VariantDimensions {
   variantId: number;
@@ -50,6 +68,7 @@ interface GraphQLVariantNode {
 export async function fetchVariantDimensions(
   variantIds: number[]
 ): Promise<Map<number, { length: number | null; width: number | null; height: number | null }>> {
+  const token = getToken();
   const gids = variantIds.map((id) => `gid://shopify/ProductVariant/${id}`);
 
   const response = await fetch(
@@ -58,7 +77,7 @@ export async function fetchVariantDimensions(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+        "X-Shopify-Access-Token": token,
       },
       body: JSON.stringify({ query: QUERY, variables: { ids: gids } }),
     }
@@ -69,8 +88,8 @@ export async function fetchVariantDimensions(
     if (response.status === 401) {
       logger.error(
         { status: 401 },
-        "Shopify Admin API 401 — SHOPIFY_ADMIN_ACCESS_TOKEN is invalid or expired. " +
-        "Generate a new token (shpat_...) from Shopify Admin → Settings → Apps → Develop apps."
+        "Shopify Admin API 401 — token is invalid or expired. " +
+        "Complete the OAuth flow via the dashboard 'Connect Shopify' button to fix this."
       );
     } else {
       logger.error({ status: response.status, body }, "Shopify GraphQL request failed");
