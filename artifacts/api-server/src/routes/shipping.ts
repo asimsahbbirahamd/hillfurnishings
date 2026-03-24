@@ -131,35 +131,50 @@ router.post("/shipping/rates", async (req: Request, res: Response) => {
     }
 
     const parcels: ParcelAttributes[] = shippableItems.map((item) => {
-      const weightKg = (item.grams * item.quantity) / 1000;
+      // Per-item dead weight — Shippit's qty field means "number of identical parcels",
+      // so weight must be PER PARCEL, not the total across all quantities.
+      const deadWeightPerItemKg = item.grams / 1000;
       const dims = dimensionsMap.get(item.variant_id);
 
-      const chargedWeight = calculateChargedWeight(
-        weightKg,
-        dims?.length ?? null,
-        dims?.width ?? null,
-        dims?.height ?? null
+      // Only use dimensions if ALL THREE are present — partial dims cause carrier errors.
+      const allDimsPresent =
+        dims?.length != null && dims?.width != null && dims?.height != null;
+
+      const chargedWeightPerItemKg = calculateChargedWeight(
+        deadWeightPerItemKg,
+        allDimsPresent ? (dims!.length!) : null,
+        allDimsPresent ? (dims!.width!) : null,
+        allDimsPresent ? (dims!.height!) : null,
       );
 
       log.info(
         {
           variantId: item.variant_id,
           sku: item.sku,
-          deadWeightKg: weightKg,
-          chargedWeightKg: chargedWeight,
-          dimensions: dims ?? "not found",
+          quantity: item.quantity,
+          deadWeightPerItemKg,
+          chargedWeightPerItemKg,
+          volumetricKg: allDimsPresent
+            ? +(dims!.length! * dims!.width! * dims!.height! * 250).toFixed(3)
+            : null,
+          dimensions: allDimsPresent
+            ? { length: dims!.length, width: dims!.width, height: dims!.height }
+            : "not found",
         },
         "Parcel weight calculation"
       );
 
       const parcel: ParcelAttributes = {
         qty: item.quantity,
-        weight: Math.max(chargedWeight, 0.1),
+        weight: Math.max(chargedWeightPerItemKg, 0.1),
       };
 
-      if (dims?.length !== null && dims?.length !== undefined) parcel.length = dims.length;
-      if (dims?.width !== null && dims?.width !== undefined) parcel.width = dims.width;
-      if (dims?.height !== null && dims?.height !== undefined) parcel.depth = dims.height;
+      // Only attach dimensions when the full set is available
+      if (allDimsPresent) {
+        parcel.length = dims!.length!;
+        parcel.width  = dims!.width!;
+        parcel.depth  = dims!.height!;
+      }
 
       return parcel;
     });
