@@ -52,7 +52,10 @@ interface ShopifyRate {
 }
 
 // Service levels to hide from customers
-const SKIP_LEVELS = new Set(["express", "click_and_collect"]);
+// - express: too fast / premium pricing not relevant for furniture
+// - priority / on_demand: same-day carriers with erratic/extreme prices
+// - click_and_collect: pickup only, not relevant for online checkout
+const SKIP_LEVELS = new Set(["express", "priority", "on_demand", "click_and_collect"]);
 
 function cleanCourierName(courierType: string): string {
   return courierType
