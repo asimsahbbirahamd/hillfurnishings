@@ -119,7 +119,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
 function Dashboard({ onLock }: { onLock: () => void }) {
   const [health, setHealth] = useState<boolean | null>(null);
   const [shippit, setShippit] = useState<{ ok: boolean; detail: string } | null>(null);
-  const [shopify, setShopify] = useState<{ connected: boolean; tokenPrefix: string | null } | null>(null);
+  const [shopify, setShopify] = useState<{ connected: boolean; tokenPrefix: string | null; error?: string; shopName?: string } | null>(null);
   const [carrier, setCarrier] = useState<CarrierStatus | null>(null);
   const [togglingCarrier, setTogglingCarrier] = useState(false);
   const [carrierToggleMsg, setCarrierToggleMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -302,7 +302,7 @@ function Dashboard({ onLock }: { onLock: () => void }) {
           {[
             { label: "API Server", sub: "Express / Node.js", state: health === null ? "loading" : health ? "ok" : "warn" },
             { label: "Shippit API", sub: shippit?.detail ?? "Connecting…", state: shippit === null ? "loading" : shippit.ok ? "ok" : "warn" },
-            { label: "Shopify Admin", sub: shopify?.connected ? shopify.tokenPrefix ?? "Connected" : "Not connected", state: shopify === null ? "loading" : shopify.connected ? "ok" : "warn" },
+            { label: "Shopify Admin", sub: shopify === null ? "Checking…" : shopify.connected ? (shopify.shopName ?? shopify.tokenPrefix ?? "Connected") : (shopify.error ? "Token invalid — see below" : "Not connected"), state: shopify === null ? "loading" : shopify.connected ? "ok" : "warn" },
           ].map(({ label, sub, state }) => (
             <div key={label} className="bg-white/[.025] border border-white/7 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -439,7 +439,11 @@ function Dashboard({ onLock }: { onLock: () => void }) {
               <h2 className="text-sm font-semibold text-white">Shopify Admin</h2>
 
               {shopify?.connected && (
-                <Banner type="success" message={`Connected — token ${shopify.tokenPrefix}`} />
+                <Banner type="success" message={`Connected to ${shopify.shopName ?? "Shopify"} — ${shopify.tokenPrefix}`} />
+              )}
+
+              {!shopify?.connected && shopify?.error && (
+                <Banner type="error" message={shopify.error} />
               )}
 
               {tokenMsg && <Banner type={tokenMsg.type} message={tokenMsg.text} onDismiss={() => setTokenMsg(null)} />}
