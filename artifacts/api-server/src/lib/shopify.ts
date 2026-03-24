@@ -65,7 +65,16 @@ export async function fetchVariantDimensions(
   );
 
   if (!response.ok) {
-    logger.error({ status: response.status }, "Shopify GraphQL request failed");
+    const body = await response.text().catch(() => "");
+    if (response.status === 401) {
+      logger.error(
+        { status: 401 },
+        "Shopify Admin API 401 — SHOPIFY_ADMIN_ACCESS_TOKEN is invalid or expired. " +
+        "Generate a new token (shpat_...) from Shopify Admin → Settings → Apps → Develop apps."
+      );
+    } else {
+      logger.error({ status: response.status, body }, "Shopify GraphQL request failed");
+    }
     throw new Error(`Shopify Admin API error: ${response.status}`);
   }
 
