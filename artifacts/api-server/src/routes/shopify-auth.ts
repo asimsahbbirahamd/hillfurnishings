@@ -28,10 +28,8 @@ function saveToken(token: string): void {
 }
 
 export function loadSavedToken(): string | null {
-  if (process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"]) {
-    const t = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"];
-    if (t.startsWith("shpat_")) return t;
-  }
+  // File token takes priority — it is saved by the OAuth callback and
+  // is more authoritative than whatever the env var / secret holds.
   try {
     const t = fs.readFileSync(TOKEN_FILE, "utf8").trim();
     if (t) {
@@ -41,6 +39,9 @@ export function loadSavedToken(): string | null {
   } catch {
     // file not found
   }
+  // Fall back to env var / Replit secret
+  const envToken = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"];
+  if (envToken) return envToken;
   return null;
 }
 
@@ -140,6 +141,73 @@ router.get("/shopify/auth/callback", async (req: Request, res: Response) => {
 </body>
 </html>
 `);
+});
+
+/**
+ * Token Exchange — accepts an App Bridge session token (shpss_...) and
+ * exchanges it for an offline Admin API access token via Shopify's
+ * token exchange grant (December 2025+ approach).
+ */
+router.post("/shopify/exchange-token", async (req: Request, res: Response) => {
+  const { session_token } = req.body as { session_token?: string };
+
+  if (!session_token) {
+    res.status(400).json({ error: "session_token is required" });
+    return;
+  }
+
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    res.status(500).json({ error: "SHOPIFY_CLIENT_ID or SHOPIFY_CLIENT_SECRET not configured" });
+    return;
+  }
+
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+    subject_token: session_token,
+    subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
+    requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+  });
+
+  const tokenRes = await fetch(`https://${SHOP}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+    },
+    body: body.toString(),
+  });
+
+  const data = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string };
+
+  if (!data.access_token) {
+    res.status(400).json({
+      error: "Token exchange failed",
+      detail: data.error_description ?? data.error,
+    });
+    return;
+  }
+
+  saveToken(data.access_token);
+  res.json({
+    success: true,
+    tokenPrefix: data.access_token.slice(0, 12) + "…",
+  });
+});
+
+/**
+ * Direct token save — for users who have obtained a token directly from
+ * Shopify Admin → Apps → Develop apps (custom app install token).
+ */
+router.post("/shopify/save-token", (req: Request, res: Response) => {
+  const { token } = req.body as { token?: string };
+  if (!token || token.trim().length < 10) {
+    res.status(400).json({ error: "Invalid token" });
+    return;
+  }
+  saveToken(token.trim());
+  res.json({ success: true, tokenPrefix: token.trim().slice(0, 12) + "…" });
 });
 
 router.get("/shopify/token-status", (_req: Request, res: Response) => {

@@ -1,7 +1,19 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import fs from "fs";
+import path from "path";
 import { fetchVariantDimensions } from "../lib/shopify";
 import { getShippitQuotes, calculateChargedWeight } from "../lib/shippit";
 import type { ParcelAttributes } from "../lib/shippit";
+
+const TOKEN_FILE = path.join(process.cwd(), ".shopify-token");
+
+function getAdminToken(): string {
+  try {
+    const t = fs.readFileSync(TOKEN_FILE, "utf8").trim();
+    if (t) return t;
+  } catch { /* file not present */ }
+  return process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"] ?? "";
+}
 
 const router: IRouter = Router();
 
@@ -230,14 +242,13 @@ router.post("/shipping/rates", async (req: Request, res: Response) => {
   }
 });
 
-async function shopifyRequest(path: string, method = "GET", body?: unknown) {
+async function shopifyRequest(urlPath: string, method = "GET", body?: unknown) {
   const SHOPIFY_STORE_DOMAIN = process.env["SHOPIFY_STORE_DOMAIN"]!;
-  const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"]!;
-  const res = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01${path}`, {
+  const res = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01${urlPath}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+      "X-Shopify-Access-Token": getAdminToken(),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
@@ -280,7 +291,6 @@ router.post("/shipping/carrier-set-active", async (req: Request, res: Response) 
 
 router.post("/shipping/register", async (_req: Request, res: Response) => {
   const SHOPIFY_STORE_DOMAIN = process.env["SHOPIFY_STORE_DOMAIN"]!;
-  const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env["SHOPIFY_ADMIN_ACCESS_TOKEN"]!;
   const REPLIT_DOMAINS = process.env["REPLIT_DOMAINS"] ?? "";
   const primaryDomain = REPLIT_DOMAINS.split(",")[0]?.trim();
 
@@ -319,7 +329,7 @@ router.post("/shipping/register", async (_req: Request, res: Response) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+        "X-Shopify-Access-Token": getAdminToken(),
       },
       body: JSON.stringify({ query: mutation }),
     }
