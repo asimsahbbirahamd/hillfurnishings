@@ -210,12 +210,40 @@ router.post("/shopify/save-token", (req: Request, res: Response) => {
   res.json({ success: true, tokenPrefix: token.trim().slice(0, 12) + "…" });
 });
 
-router.get("/shopify/token-status", (_req: Request, res: Response) => {
+router.get("/shopify/token-status", async (_req: Request, res: Response) => {
   const token = loadSavedToken();
-  res.json({
-    connected: !!token,
-    tokenPrefix: token ? token.slice(0, 12) + "…" : null,
-  });
+  if (!token) {
+    res.json({ connected: false, tokenPrefix: null });
+    return;
+  }
+
+  // Actually verify the token against Shopify — a stored token is useless if it's invalid
+  try {
+    const verify = await fetch(`https://${SHOP}/admin/api/2025-01/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({ query: "{ shop { name } }" }),
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!verify.ok) {
+      res.json({ connected: false, tokenPrefix: token.slice(0, 12) + "…", error: `Shopify returned ${verify.status} — token is invalid` });
+      return;
+    }
+
+    const data = (await verify.json()) as { data?: { shop?: { name?: string } }; errors?: unknown };
+    if (data.errors) {
+      res.json({ connected: false, tokenPrefix: token.slice(0, 12) + "…", error: "Token lacks required scopes" });
+      return;
+    }
+
+    res.json({ connected: true, tokenPrefix: token.slice(0, 12) + "…", shopName: data.data?.shop?.name });
+  } catch {
+    res.json({ connected: false, tokenPrefix: token.slice(0, 12) + "…", error: "Could not reach Shopify to verify token" });
+  }
 });
 
 export default router;
