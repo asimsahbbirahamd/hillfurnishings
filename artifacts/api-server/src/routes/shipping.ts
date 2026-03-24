@@ -201,6 +201,7 @@ router.post("/shipping/rates", async (req: Request, res: Response) => {
         dropoff_country_code: destination.country,
         parcel_attributes: parcels,
         return_all_quotes: true,
+        service_levels: ["standard"],
       });
     } catch (err) {
       log.error({ err }, "Shippit quotes API failed");

@@ -22,6 +22,7 @@ export interface ShippitQuoteRequest {
   dropoff_country_code?: string;
   parcel_attributes: ParcelAttributes[];
   return_all_quotes?: boolean;
+  service_levels?: string[];
 }
 
 export interface ShippitQuote {
@@ -73,6 +74,7 @@ export async function getShippitQuotes(
       pickup_state: PICKUP_STATE,
       parcel_attributes: quoteRequest.parcel_attributes,
       return_all_quotes: quoteRequest.return_all_quotes ?? true,
+      ...(quoteRequest.service_levels ? { service_levels: quoteRequest.service_levels } : {}),
     },
   };
 
