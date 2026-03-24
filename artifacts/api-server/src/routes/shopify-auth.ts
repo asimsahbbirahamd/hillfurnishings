@@ -13,6 +13,10 @@ const SCOPES = "read_products,write_shipping";
 const TOKEN_FILE = path.join(process.cwd(), ".shopify-token");
 
 function getAppBaseUrl(): string {
+  // Prefer a stable configured base (deployed URL) so the redirect URI
+  // never changes between dev restarts. Falls back to Replit dev domain.
+  const configured = process.env["SHOPIFY_REDIRECT_BASE"];
+  if (configured) return configured.replace(/\/$/, "");
   const domains = process.env["REPLIT_DOMAINS"] ?? "";
   const primary = domains.split(",")[0]?.trim();
   return primary ? `https://${primary}` : "http://localhost:8080";
@@ -49,6 +53,11 @@ export function getShopifyToken(): string | null {
   return loadSavedToken();
 }
 
+// Expose the redirect URI so the dashboard can display it for the user to register
+router.get("/shopify/redirect-uri", (_req: Request, res: Response) => {
+  res.json({ redirectUri: `${getAppBaseUrl()}/api/shopify/auth/callback` });
+});
+
 router.get("/shopify/auth", (_req: Request, res: Response) => {
   if (!CLIENT_ID) {
     res.status(500).send("SHOPIFY_CLIENT_ID not configured");
@@ -63,6 +72,8 @@ router.get("/shopify/auth", (_req: Request, res: Response) => {
   authUrl.searchParams.set("scope", SCOPES);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("state", nonce);
+  // Request an offline (permanent) access token — does not expire
+  authUrl.searchParams.set("grant_options[]", "offline");
 
   res.redirect(authUrl.toString());
 });
