@@ -44,6 +44,16 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# Replit — exclude from client delivery
 .cache/
 .local/
+.agents/
+.replit
+.replitignore
+replit.md
+attached_assets/
+artifacts/mockup-sandbox/
+artifacts/*/.replit-artifact/
+scripts/
+lib/
+.shopify-token
